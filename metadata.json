@@ -1,0 +1,7 @@
+{
+  "name": "SkyBound AI MJR",
+  "description": "Platform afiliasi perjalanan cerdas dengan analisis AI untuk tiket Pesawat, Kereta, Bus, dan Kapal Laut.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
