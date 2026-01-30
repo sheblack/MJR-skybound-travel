@@ -1,10 +1,7 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { SearchParams, TravelOption, TransportType } from "../types";
+import { SearchParams, SearchResult } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
-const travelOptionSchema = {
+const travelSchema = {
   type: Type.OBJECT,
   properties: {
     options: {
@@ -15,75 +12,36 @@ const travelOptionSchema = {
           id: { type: Type.STRING },
           otaName: { type: Type.STRING },
           providerName: { type: Type.STRING },
-          type: { 
-            type: Type.STRING,
-            description: "Wajib menggunakan salah satu dari: PLANE, TRAIN, BUS, atau SEA"
-          },
+          type: { type: Type.STRING },
           departureTime: { type: Type.STRING },
           arrivalTime: { type: Type.STRING },
           duration: { type: Type.STRING },
           price: { type: Type.NUMBER },
-          currency: { type: Type.STRING },
           class: { type: Type.STRING },
-          availableSeats: { type: Type.NUMBER },
           affiliateUrl: { type: Type.STRING },
-          tags: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING } 
-          },
           score: { type: Type.NUMBER },
-          upsellOptions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                label: { type: Type.STRING },
-                price: { type: Type.NUMBER }
-              }
-            }
-          }
+          tags: { type: Type.ARRAY, items: { type: Type.STRING } }
         },
-        required: ['id', 'otaName', 'providerName', 'price', 'currency', 'tags', 'score', 'type']
+        required: ['id', 'otaName', 'providerName', 'price', 'type', 'affiliateUrl']
       }
     },
-    aiAnalysis: { type: Type.STRING },
-    suggestedUpsell: { type: Type.STRING }
+    aiAnalysis: { type: Type.STRING }
   },
   required: ['options', 'aiAnalysis']
 };
 
-export const getAnalyzedTravelOptions = async (params: SearchParams): Promise<any> => {
-  const transportHint = params.transportType && params.transportType !== 'ALL' 
-    ? `Hanya cari transportasi jenis: ${params.transportType}` 
-    : "Berikan variasi transportasi (Pesawat, Kereta, Bus, atau Kapal Laut/Ferry Pelni)";
-
+export const searchTravel = async (params: SearchParams): Promise<SearchResult> => {
+  // Inisialisasi sesuai guideline: const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   const prompt = `
-    Bertindaklah sebagai Analis Data Perjalanan Senior MJR. Simulasikan agregasi API real-time dari OTA terkemuka untuk:
-    Asal: ${params.origin}
-    Tujuan: ${params.destination}
+    Bertindaklah sebagai Analis Perjalanan Senior MJR. Simulasikan data tiket real-time untuk:
+    Rute: ${params.origin} ke ${params.destination}
     Tanggal: ${params.departureDate}
-    Preferensi: ${params.preference}
+    Tipe Transportasi: ${params.transportType}
     
-    ${transportHint}
-
-    ATURAN KETAT UNTUK FIELD 'type':
-    - Jika Pesawat/Maskapai, gunakan 'PLANE'
-    - Jika Kereta Api, gunakan 'TRAIN'
-    - Jika Bus/Travel, gunakan 'BUS'
-    - Jika Kapal Laut/Ferry/Pelni, gunakan 'SEA'
-
-    Instruksi Khusus URL:
-    - Karena ini adalah DEMO, JANGAN membuat link booking spesifik yang dalam (deep link) karena akan 404.
-    - Gunakan link pencarian umum sebagai simulasi.
-    - Contoh: jika Tiket.com pesawat, gunakan 'https://www.tiket.com/pesawat'.
-    - Jika Traveloka kereta, gunakan 'https://www.traveloka.com/en-id/kereta-api'.
-    - Jika Pelni, gunakan 'https://www.pelni.co.id/reservasi-tiket'.
-
-    Instruksi Output:
-    1. Hasilkan 5-7 opsi perjalanan yang beragam dalam bahasa Indonesia.
-    2. Skor (0-100) berdasarkan preferensi user.
-    3. Analisis AI MJR harus menyebutkan bahwa harga adalah estimasi real-time.
-    4. Teks harus profesional dan meyakinkan.
+    Hasilkan 5 opsi terbaik dalam JSON valid. Gunakan nama operator asli Indonesia (Garuda, KAI, Rosalia Indah, Pelni).
+    Berikan analisis AI MJR yang persuasif dalam Bahasa Indonesia.
   `;
 
   try {
@@ -92,16 +50,16 @@ export const getAnalyzedTravelOptions = async (params: SearchParams): Promise<an
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: travelOptionSchema,
+        responseSchema: travelSchema,
       },
     });
 
-    if (response.text) {
-      return JSON.parse(response.text);
-    }
-    throw new Error("Tidak ada respon dari AI");
+    // Mengakses properti .text secara langsung (bukan method)
+    const text = response.text;
+    if (!text) throw new Error("MJR Engine: Data tidak ditemukan.");
+    return JSON.parse(text);
   } catch (error) {
-    console.error("Gemini Error:", error);
-    throw error;
+    console.error("MJR Engine Error:", error);
+    throw new Error("Gagal sinkronisasi dengan MJR Network. Periksa API KEY di Vercel Dashboard Settings.");
   }
 };
